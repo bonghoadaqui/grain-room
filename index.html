@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grain Room</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: print-shop workbench — control rail on the left, proof sheet on the right, stacks on phones */
+:root{
+  --paper:#ecebe5; --sheet:#f7f6f2; --ink:#1d1f22; --muted:#6b6d70; --rule:#cfcdc4; --accent:#e0412b;
+  --display:"Archivo",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#16171a; --sheet:#1f2125; --ink:#e9e7e1; --muted:#9a9b9e; --rule:#33353a; --accent:#ff5a40; color-scheme:dark}}
+:root[data-theme="dark"]{--paper:#16171a; --sheet:#1f2125; --ink:#e9e7e1; --muted:#9a9b9e; --rule:#33353a; --accent:#ff5a40; color-scheme:dark}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px}
+.wrap{max-width:1200px;margin:0 auto;padding-block:24px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin:0;line-height:1}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);margin:0}
+.bench{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:760px){.bench{grid-template-columns:1fr}}
+.rail{display:grid;gap:12px}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:14px;display:grid;gap:12px}
+.panel h2{margin:0;display:flex;align-items:center;justify-content:space-between;font-family:var(--display);font-weight:500;font-size:15px}
+.panel.off .ctl{opacity:.4;pointer-events:none}
+.ctl{display:grid;gap:4px}
+.ctl label{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.ctl output{color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:5px}
+.switch{appearance:none;width:34px;height:20px;border-radius:10px;background:var(--rule);position:relative;cursor:pointer;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--sheet);transition:transform .15s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(14px)}
+.switch:focus-visible,button:focus-visible,.drop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{border:1.5px dashed var(--rule);border-radius:4px;padding:16px;text-align:center;cursor:pointer;color:var(--muted);background:var(--sheet)}
+.drop.over{border-color:var(--accent);color:var(--ink)}
+.drop strong{color:var(--ink);font-weight:500}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-weight:500;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:3px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink)}
+.proof{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:14px;display:grid;gap:10px;min-width:0}
+.proof-head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.stage{background:repeating-conic-gradient(var(--rule) 0 25%,transparent 0 50%) 0 0/16px 16px;display:grid;place-items:center;min-height:240px;overflow:hidden}
+#out{max-width:100%;max-height:72vh;display:block}
+.hint{color:var(--muted);font-size:12px;margin:0}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Grain<span>.</span>Room</h1>
+    <p class="sub">Grain · halftone · pixelate, applied in your browser</p>
+  </header>
+
+  <div class="bench">
+    <aside class="rail">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload an image">
+        <strong>Drop an image</strong> or click to choose<br><span style="font-size:11px">Paste works too. A sample is loaded.</span>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+
+      <section class="panel" id="p-pix">
+        <h2>Pixelate <input type="checkbox" class="switch" id="pixOn" aria-label="Pixelate on"></h2>
+        <div class="ctl"><label for="pixSize">Block size <output id="pixSizeV"></output></label><input type="range" id="pixSize" min="2" max="64" value="10"></div>
+      </section>
+
+      <section class="panel" id="p-ht">
+        <h2>Halftone <input type="checkbox" class="switch" id="htOn" checked aria-label="Halftone on"></h2>
+        <div class="ctl"><label for="htSize">Cell size <output id="htSizeV"></output></label><input type="range" id="htSize" min="3" max="40" value="8"></div>
+        <div class="ctl"><label for="htAngle">Screen angle <output id="htAngleV"></output></label><input type="range" id="htAngle" min="0" max="90" value="45"></div>
+        <div class="ctl"><label for="htShape">Dot shape</label><select id="htShape"><option value="circle">Circle</option><option value="square">Square</option><option value="line">Line</option></select></div>
+        <div class="ctl"><label for="htMode">Ink</label><select id="htMode"><option value="mono">Black on paper</option><option value="color">Original color</option></select></div>
+      </section>
+
+      <section class="panel" id="p-gr">
+        <h2>Grain <input type="checkbox" class="switch" id="grOn" checked aria-label="Grain on"></h2>
+        <div class="ctl"><label for="grAmt">Amount <output id="grAmtV"></output></label><input type="range" id="grAmt" min="0" max="100" value="30"></div>
+        <div class="ctl"><label for="grSize">Grain size <output id="grSizeV"></output></label><input type="range" id="grSize" min="1" max="6" value="1"></div>
+        <div class="ctl"><label for="grMode">Type</label><select id="grMode"><option value="mono">Monochrome</option><option value="color">Color noise</option></select></div>
+      </section>
+
+      <div class="row">
+        <button id="reroll" class="ghost">New grain seed</button>
+        <button id="reset" class="ghost">Reset</button>
+        <button id="dl">Download PNG</button>
+      </div>
+    </aside>
+
+    <main class="proof">
+      <div class="proof-head"><span id="meta">Sample · 900 × 600</span><span>Order: pixelate → halftone → grain</span></div>
+      <div class="stage"><img id="out" alt="Processed image preview"></div>
+      <p class="hint">Download PNG saves at full resolution. You can also right-click the image and choose “Save image as”.</p>
+    </main>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let src = null, seed = 1;
+const work = document.createElement('canvas');
+
+// ---- sample image: a procedural sunset scene so the tool opens working
+function makeSample(){
+  const c = document.createElement('canvas'); c.width = 900; c.height = 600;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0,0,0,600);
+  sky.addColorStop(0,'#2b3a67'); sky.addColorStop(.55,'#e4785a'); sky.addColorStop(1,'#f6c66b');
+  g.fillStyle = sky; g.fillRect(0,0,900,600);
+  const sun = g.createRadialGradient(600,330,10,600,330,160);
+  sun.addColorStop(0,'#fff4d6'); sun.addColorStop(.35,'#ffd27a'); sun.addColorStop(1,'rgba(255,210,122,0)');
+  g.fillStyle = sun; g.fillRect(0,0,900,600);
+  g.fillStyle = '#3a2a3f';
+  g.beginPath(); g.moveTo(0,430);
+  for(let x=0;x<=900;x+=30) g.lineTo(x, 420 - Math.sin(x/90)*40 - Math.cos(x/37)*14);
+  g.lineTo(900,600); g.lineTo(0,600); g.fill();
+  g.fillStyle = '#1c1624';
+  g.beginPath(); g.moveTo(0,500);
+  for(let x=0;x<=900;x+=20) g.lineTo(x, 500 - Math.cos(x/120)*30);
+  g.lineTo(900,600); g.lineTo(0,600); g.fill();
+  return c;
+}
+
+// ---- seeded RNG so grain is stable while dragging sliders
+function rng(s){ return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// ---- effects
+function pixelate(ctx, w, h, size){
+  const sw = Math.max(1, Math.ceil(w/size)), sh = Math.max(1, Math.ceil(h/size));
+  const t = document.createElement('canvas'); t.width = sw; t.height = sh;
+  const tc = t.getContext('2d'); tc.imageSmoothingEnabled = true;
+  tc.drawImage(ctx.canvas, 0, 0, sw, sh);
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0,0,w,h);
+  ctx.drawImage(t, 0, 0, sw, sh, 0, 0, sw*size, sh*size);
+  ctx.imageSmoothingEnabled = true;
+}
+
+function halftone(ctx, w, h, cell, angleDeg, shape, mode){
+  const data = ctx.getImageData(0,0,w,h).data;
+  const ink = getComputedStyle(document.documentElement);
+  ctx.fillStyle = mode === 'mono' ? '#f7f6f2' : '#ffffff';
+  ctx.fillRect(0,0,w,h);
+  const a = angleDeg * Math.PI/180, cos = Math.cos(a), sin = Math.sin(a);
+  const diag = Math.hypot(w,h);
+  ctx.save();
+  ctx.translate(w/2,h/2); ctx.rotate(a);
+  for(let gy=-diag/2; gy<diag/2; gy+=cell){
+    for(let gx=-diag/2; gx<diag/2; gx+=cell){
+      const cx = gx + cell/2, cy = gy + cell/2;
+      // rotate grid point back to image space to sample color
+      const ix = Math.round(cx*cos - cy*sin + w/2), iy = Math.round(cx*sin + cy*cos + h/2);
+      if(ix<0||iy<0||ix>=w||iy>=h) continue;
+      const i = (iy*w+ix)*4, r=data[i], g=data[i+1], b=data[i+2];
+      const lum = (0.299*r + 0.587*g + 0.114*b)/255;
+      const dark = 1 - lum; if(dark < 0.02) continue;
+      ctx.fillStyle = mode === 'mono' ? '#1d1f22' : `rgb(${r},${g},${b})`;
+      const k = mode === 'mono' ? dark : Math.max(dark, 0.35);
+      if(shape === 'circle'){
+        const rad = Math.sqrt(k) * cell * 0.72;
+        ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.fill();
+      } else if(shape === 'square'){
+        const s = Math.sqrt(k) * cell * 1.05;
+        ctx.fillRect(cx-s/2, cy-s/2, s, s);
+      } else {
+        const t = k * cell;
+        ctx.fillRect(gx, cy - t/2, cell + .5, t);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function grain(ctx, w, h, amount, size, mode){
+  if(amount <= 0) return;
+  const img = ctx.getImageData(0,0,w,h), d = img.data;
+  const rand = rng(seed), strength = amount * 1.4;
+  const cols = Math.ceil(w/size), rows = Math.ceil(h/size);
+  const n = new Float32Array(cols*rows*3);
+  for(let i=0;i<n.length;i+=3){
+    const v = (rand()+rand()+rand()-1.5) * strength; // approx gaussian
+    n[i] = v;
+    n[i+1] = mode === 'color' ? (rand()+rand()+rand()-1.5)*strength : v;
+    n[i+2] = mode === 'color' ? (rand()+rand()+rand()-1.5)*strength : v;
+  }
+  for(let y=0;y<h;y++){
+    const ry = (y/size|0)*cols;
+    for(let x=0;x<w;x++){
+      const ni = (ry + (x/size|0))*3, p = (y*w+x)*4;
+      d[p]+=n[ni]; d[p+1]+=n[ni+1]; d[p+2]+=n[ni+2];
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+// ---- render pipeline
+let queued = false;
+function render(){
+  if(queued) return; queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    if(!src) return;
+    const w = src.width, h = src.height;
+    work.width = w; work.height = h;
+    const ctx = work.getContext('2d', {willReadFrequently:true});
+    ctx.drawImage(src,0,0);
+    if($('pixOn').checked) pixelate(ctx,w,h,+$('pixSize').value);
+    if($('htOn').checked) halftone(ctx,w,h,+$('htSize').value,+$('htAngle').value,$('htShape').value,$('htMode').value);
+    if($('grOn').checked) grain(ctx,w,h,+$('grAmt').value,+$('grSize').value,$('grMode').value);
+    $('out').src = work.toDataURL('image/png');
+  });
+}
+
+function syncUI(){
+  $('pixSizeV').textContent = $('pixSize').value + ' px';
+  $('htSizeV').textContent = $('htSize').value + ' px';
+  $('htAngleV').textContent = $('htAngle').value + '°';
+  $('grAmtV').textContent = $('grAmt').value + '%';
+  $('grSizeV').textContent = $('grSize').value + ' px';
+  [['p-pix','pixOn'],['p-ht','htOn'],['p-gr','grOn']].forEach(([p,s]) => $(p).classList.toggle('off', !$(s).checked));
+}
+
+// large photos get scaled to keep sliders responsive
+const MAX = 1800;
+function loadFile(file){
+  if(!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    const s = Math.min(1, MAX/Math.max(im.width, im.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(im.width*s); c.height = Math.round(im.height*s);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    src = c; URL.revokeObjectURL(url);
+    $('meta').textContent = `${file.name} · ${c.width} × ${c.height}`;
+    render();
+  };
+  im.onerror = () => { $('meta').textContent = 'That file could not be read as an image. Try a JPG, PNG or WebP.'; };
+  im.src = url;
+}
+
+const defaults = {};
+document.querySelectorAll('input,select').forEach(el => {
+  if(el.id) defaults[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+  el.addEventListener('input', () => { syncUI(); render(); });
+});
+
+const drop = $('drop');
+drop.addEventListener('click', () => $('file').click());
+drop.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); $('file').click(); }});
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+document.addEventListener('paste', e => { const f = [...(e.clipboardData?.files||[])][0]; if(f) loadFile(f); });
+
+$('reroll').addEventListener('click', () => { seed = (Math.random()*1e9)|0; render(); });
+$('reset').addEventListener('click', () => {
+  for(const [id,v] of Object.entries(defaults)){ const el=$(id); if(!el||el.type==='file') continue; el.type==='checkbox' ? el.checked=v : el.value=v; }
+  syncUI(); render();
+});
+
+$('dl').addEventListener('click', () => {
+  work.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+    a.download = 'grain-room.png'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000); }, 'image/png');
+});
+src = makeSample(); syncUI(); render();
+</script>
+
+</body>
+</html>
